@@ -39,22 +39,16 @@ GOFILE_TOKEN = os.getenv("GOFILE_TOKEN")
 
 def load_fallback_games():
     place_ids = []
-
     if not os.path.exists("fallback-games.txt"):
         return place_ids
-
     with open("fallback-games.txt", "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-
             if not line or line.startswith("#"):
                 continue
-
             place_id = line.split("#", 1)[0].strip()
-
             if place_id.isdigit():
                 place_ids.append(int(place_id))
-
     return place_ids
 
 FALLBACK_GAMES = load_fallback_games()
@@ -208,9 +202,7 @@ async def fetch_creator_games(session: aiohttp.ClientSession, creator_id: int, c
 
 async def fetch_asset_details(session: aiohttp.ClientSession, asset_id: str, cookie=None, max_retries=10):
     url = f"https://economy.roproxy.com/v2/assets/{asset_id}/details"
-    
     headers = {}
-    
     if cookie:
         headers["Cookie"] = f".ROBLOSECURITY={cookie}"
         
@@ -232,11 +224,7 @@ async def fetch_asset_details(session: aiohttp.ClientSession, asset_id: str, coo
 
 async def fetch_asset_location(session: aiohttp.ClientSession, asset_id: str, place_id=None, cookie=None, universe_id=None):
     url = 'https://assetdelivery.roproxy.com/v2/assets/batch'
-    body_array = [{
-        "assetId": asset_id,
-        "requestId": "0"
-    }]
-    
+    body_array = [{"assetId": asset_id, "requestId": "0"}]
     headers = {
         "User-Agent": "Roblox/WinInet",
         "Content-Type": "application/json",
@@ -276,7 +264,7 @@ async def convert_media(input_path: str, format: str, quality: str) -> str:
     temp_output_name = input_name.rsplit('.', 1)[0] + "_mod" + format
     temp_output_path = os.path.join(input_dir, temp_output_name)
 
-    cmd = ['ffmpeg', '-y', '-i', input_name]
+    cmd = ['ffmpeg', '-y', '-nostdin', '-i', input_name]
 
     is_audio = format in ['.mp3', '.wav', '.ogg', '.flac']
     if is_audio:
@@ -312,6 +300,7 @@ async def convert_media(input_path: str, format: str, quality: str) -> str:
     try:
         process = await asyncio.create_subprocess_exec(
             *cmd,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=os.path.abspath(input_dir)
@@ -329,7 +318,6 @@ async def convert_media(input_path: str, format: str, quality: str) -> str:
 
         if stdout:
             logger.info(stdout.decode(errors="ignore"))
-
         if stderr:
             logger.error(stderr.decode(errors="ignore"))
 
@@ -498,10 +486,11 @@ async def process_hls_playlist(session: aiohttp.ClientSession, m3u8_path: str, b
         webm_output = os.path.join(output_dir, webm_name)
         logger.info(f"Concatenando segmentos em {webm_name}...")
         
-        cmd = ['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', list_name, '-c', 'copy', webm_name]
+        cmd = ['ffmpeg', '-y', '-nostdin', '-f', 'concat', '-safe', '0', '-i', list_name, '-c', 'copy', webm_name]
         
         process = await asyncio.create_subprocess_exec(
-            *cmd, 
+            *cmd,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE, 
             stderr=asyncio.subprocess.PIPE,
             cwd=os.path.abspath(output_dir)
@@ -616,12 +605,13 @@ async def download_public_video(session: aiohttp.ClientSession, asset_id: str, c
 
     output_filename = os.path.join("downloaded_assets", f"{base_name}.webm")
     cmd = [
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+        "ffmpeg", "-y", "-nostdin", "-f", "concat", "-safe", "0",
         "-i", os.path.basename(list_filename), "-c", "copy", os.path.basename(output_filename)
     ]
 
     process = await asyncio.create_subprocess_exec(
         *cmd,
+        stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         cwd=os.path.abspath("downloaded_assets")
@@ -713,23 +703,13 @@ async def download_core(session: aiohttp.ClientSession, asset_id: str):
         asset_url = await fetch_version_fallback(session, asset_id, ROBLOX_COOKIE)
 
         if not asset_url and FALLBACK_GAMES:
-            logger.info(
-            f"Asset {asset_id} - Tentando {len(FALLBACK_GAMES)} jogos de fallback-games.txt..."
-            )
+            logger.info(f"Asset {asset_id} - Tentando {len(FALLBACK_GAMES)} jogos de fallback-games.txt...")
 
         for place_id in FALLBACK_GAMES:
-            test_url = await fetch_asset_location(
-                session,
-                asset_id,
-                place_id,
-                ROBLOX_COOKIE
-            )
-
+            test_url = await fetch_asset_location(session, asset_id, place_id, ROBLOX_COOKIE)
             if test_url:
                 asset_url = test_url
-                logger.info(
-                    f"Asset {asset_id} - URL obtida via fallback-games.txt (PlaceID: {place_id})"
-                )
+                logger.info(f"Asset {asset_id} - URL obtida via fallback-games.txt (PlaceID: {place_id})")
                 break
 
     if not asset_url:
@@ -818,7 +798,6 @@ class FormatButton(discord.ui.Button):
             kwargs["embed"] = interaction.message.embeds[0]
         await interaction.response.edit_message(**kwargs)
 
-
 class QualitySelect(discord.ui.Select):
     def __init__(self, is_audio: bool, row: int):
         self.is_audio = is_audio
@@ -851,7 +830,6 @@ class QualitySelect(discord.ui.Select):
         else:
             self.view.video_quality = self.values[0]
         await interaction.response.defer()
-
 
 class ConfirmButton(discord.ui.Button):
     def __init__(self, row: int):
@@ -981,7 +959,7 @@ async def asset(interaction: discord.Interaction, asset_id: str):
             
             try:
                 await interaction.edit_original_response(content=None, embed=embed_view, view=view)
-            except discord.errors.HTTPException:
+            except Exception:
                 try: await interaction.delete_original_response()
                 except Exception: pass
                 try: await interaction.channel.send(embed=embed_view, view=view)
@@ -998,7 +976,7 @@ async def asset(interaction: discord.Interaction, asset_id: str):
                 timeout_embed.add_field(name="Informações", value="Essa sessão expirou devido ao tempo limite de espera.")
                 try:
                     await interaction.edit_original_response(content=None, embed=timeout_embed, view=None)
-                except discord.errors.HTTPException:
+                except Exception:
                     try: await interaction.delete_original_response()
                     except Exception: pass
                 try:
@@ -1010,7 +988,7 @@ async def asset(interaction: discord.Interaction, asset_id: str):
             wait_embed = discord.Embed(title="⌛️ Espere...", description="O arquivo excede 10MB. Enviando para o **Gofile** (isso pode demorar)...", color=0xFFA500)
             try:
                 await interaction.edit_original_response(content=None, embed=wait_embed, view=None)
-            except discord.errors.HTTPException:
+            except Exception:
                 try: await interaction.delete_original_response()
                 except Exception: pass
                 try: await interaction.channel.send(embed=wait_embed)
@@ -1024,7 +1002,7 @@ async def asset(interaction: discord.Interaction, asset_id: str):
 
             try:
                 await interaction.edit_original_response(content=None, embed=done_gofile, view=None)
-            except discord.errors.HTTPException:
+            except Exception:
                 try: await interaction.delete_original_response()
                 except Exception: pass
                 try: await interaction.channel.send(embed=done_gofile)
@@ -1034,8 +1012,8 @@ async def asset(interaction: discord.Interaction, asset_id: str):
             done_direct.add_field(name="📁 Arquivo processado", value="**1 arquivo processado.**", inline=False)
 
             try:
-                await interaction.edit_original_response(content=None, embed=done_direct, file=discord.File(file_path), view=None)
-            except discord.errors.HTTPException:
+                await interaction.edit_original_response(content=None, embed=done_direct, attachments=[discord.File(file_path)], view=None)
+            except Exception:
                 try: await interaction.delete_original_response()
                 except Exception: pass
                 try: await interaction.channel.send(embed=done_direct, file=discord.File(file_path))
@@ -1048,7 +1026,7 @@ async def asset(interaction: discord.Interaction, asset_id: str):
         err_embed = discord.Embed(title="❌️ Erro", description=f"**{error}**", color=0xFF0000)
         try:
             await interaction.edit_original_response(content=None, embed=err_embed, view=None)
-        except discord.errors.HTTPException:
+        except Exception:
             try: await interaction.delete_original_response()
             except Exception: pass
             try: await interaction.channel.send(embed=err_embed)
@@ -1148,7 +1126,7 @@ async def assetbatch(interaction: discord.Interaction, asset_ids: str):
             
             try:
                 await interaction.edit_original_response(content=None, embed=embed_view, view=view)
-            except discord.errors.HTTPException:
+            except Exception:
                 try: await interaction.delete_original_response()
                 except Exception: pass
                 try: await interaction.channel.send(embed=embed_view, view=view)
@@ -1169,7 +1147,7 @@ async def assetbatch(interaction: discord.Interaction, asset_ids: str):
                 timeout_embed = discord.Embed(title="⏰️ Essa sessão expirou", color=0xFF0000)
                 timeout_embed.add_field(name="Informações", value="Essa sessão expirou devido ao tempo limite de espera.")
                 try: await interaction.edit_original_response(content=None, embed=timeout_embed, view=None)
-                except discord.errors.HTTPException: 
+                except Exception: 
                     try: await interaction.delete_original_response()
                     except Exception: pass
                 for file in downloaded_files:
@@ -1180,7 +1158,7 @@ async def assetbatch(interaction: discord.Interaction, asset_ids: str):
         else:
             try: await interaction.edit_original_response(content=None, embed=discord.Embed(title="🗜️ Compactando...", description="Criando ZIP...", color=0xFFA500), view=None)
             except Exception: pass
-    except discord.errors.HTTPException:
+    except Exception:
         pass
 
     zip_filename = f"batch_{uuid.uuid4().hex[:8]}.zip"
@@ -1223,7 +1201,7 @@ async def assetbatch(interaction: discord.Interaction, asset_ids: str):
         if os.path.getsize(zip_filename) > 10 * 1024 * 1024:
             wait_embed = discord.Embed(title="⌛️ Espere...", description="O arquivo ZIP excede 10MB. Enviando para o **Gofile** (isso pode demorar)...", color=0xFFA500)
             try: await interaction.edit_original_response(content=None, embed=wait_embed, view=None)
-            except discord.errors.HTTPException:
+            except Exception:
                 try: await interaction.delete_original_response()
                 except Exception: pass
                 try: await interaction.channel.send(embed=wait_embed)
@@ -1233,15 +1211,15 @@ async def assetbatch(interaction: discord.Interaction, asset_ids: str):
             final_embed.add_field(name="🔗 Download", value=f"**{gofile_url}**", inline=False)
             
             try: await interaction.edit_original_response(content=None, embed=final_embed, view=None)
-            except discord.errors.HTTPException:
+            except Exception:
                 try: await interaction.delete_original_response()
                 except Exception: pass
                 try: await interaction.channel.send(content=None, embed=final_embed)
                 except Exception: pass
         else:
             try: 
-                await interaction.edit_original_response(content=None, embed=final_embed, file=discord.File(zip_filename), view=None)
-            except discord.errors.HTTPException:
+                await interaction.edit_original_response(content=None, embed=final_embed, attachments=[discord.File(zip_filename)], view=None)
+            except Exception:
                 try: await interaction.delete_original_response()
                 except Exception: pass
                 try: await interaction.channel.send(content=None, embed=final_embed, file=discord.File(zip_filename))
@@ -1256,7 +1234,7 @@ async def assetbatch(interaction: discord.Interaction, asset_ids: str):
         err_embed.add_field(name="❌️ Erro Fatal", value="O arquivo ZIP falhou ao ser salvo no disco.", inline=False)
 
         try: await interaction.edit_original_response(content=None, embed=err_embed, view=None)
-        except discord.errors.HTTPException:
+        except Exception:
             try: await interaction.delete_original_response()
             except Exception: pass
             try: await interaction.channel.send(embed=err_embed)
