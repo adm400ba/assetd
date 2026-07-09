@@ -909,17 +909,24 @@ async def asset(interaction: discord.Interaction, asset_id: str):
     async def progress_task():
         try:
             i = 1
-            while i < 10 and state["running"]:
-                # AUMENTADO PARA 2.5s PARA EVITAR RATE LIMIT DO DISCORD
+            while state["running"]: 
                 await asyncio.sleep(2.5)
+                
                 if not state["running"]:
                     break
-                i += 1
-                desc = f"**{state['current']}/{state['total']} Assets\n`{'🟩' * i}{'⬜' * (10 - i)}`\n\nProcessando download...**"
+                
+                i = (i % 10) + 1 
+                
+                desc = f"**{state['current']}/{state['total']} Assets\n`{'🟩' * i}{'⬜️' * (10 - i)}`\n\nProcessando...**"
+                
                 if state["running"]:
                     state["in_flight"] = True
                     try:
-                        await interaction.edit_original_response(content=None, embed=discord.Embed(title="⌛️ Processando...", description=desc, color=0xFFA500), view=None)
+                        await interaction.edit_original_response(
+                            content=None, 
+                            embed=discord.Embed(title="⌛️ Processando...", description=desc, color=0xFFA500), 
+                            view=None
+                        )
                     except Exception:
                         pass
                     finally:
@@ -950,7 +957,6 @@ async def asset(interaction: discord.Interaction, asset_id: str):
             view = MediaFormatView(has_a, has_v)
             embed_view = discord.Embed(title="⚙️ Formatos e Qualidades", description="Mídia detectada! Selecione os formatos e qualidades:", color=0x74D8FA)
             
-            # PROTEÇÃO ADICIONADA: Se falhar a edição, deleta o original e envia no chat
             try:
                 await interaction.edit_original_response(content=None, embed=embed_view, view=view)
             except discord.errors.HTTPException:
@@ -1008,7 +1014,6 @@ async def asset(interaction: discord.Interaction, asset_id: str):
             try:
                 await interaction.edit_original_response(content=None, embed=done_direct, attachments=[discord.File(file_path)], view=None)
             except discord.errors.HTTPException:
-                # SOLUÇÃO DA MENSAGEM FANTASMA AQUI
                 try: await interaction.delete_original_response()
                 except Exception: pass
                 try: await interaction.channel.send(embed=done_direct, file=discord.File(file_path))
@@ -1052,7 +1057,6 @@ async def assetbatch(interaction: discord.Interaction, asset_ids: str):
         try:
             i = 1
             while i < 10 and state["running"]:
-                # AUMENTADO PARA 2.5s PARA EVITAR RATE LIMIT DO DISCORD
                 await asyncio.sleep(2.5)
                 if not state["running"]:
                     break
