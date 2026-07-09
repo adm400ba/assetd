@@ -799,6 +799,11 @@ class FormatButton(discord.ui.Button):
         self.is_audio = is_audio
 
     async def callback(self, interaction: discord.Interaction):
+        if getattr(self.view, 'confirmed', False):
+            try: await interaction.response.defer()
+            except: pass
+            return
+
         if self.is_audio:
             self.view.audio_fmt = self.fmt
         else:
@@ -812,6 +817,7 @@ class FormatButton(discord.ui.Button):
         if interaction.message.embeds:
             kwargs["embed"] = interaction.message.embeds[0]
         await interaction.response.edit_message(**kwargs)
+
 
 class QualitySelect(discord.ui.Select):
     def __init__(self, is_audio: bool, row: int):
@@ -835,21 +841,37 @@ class QualitySelect(discord.ui.Select):
         super().__init__(placeholder=placeholder, min_values=1, max_values=1, options=options, row=row)
 
     async def callback(self, interaction: discord.Interaction):
+        if getattr(self.view, 'confirmed', False):
+            try: await interaction.response.defer()
+            except: pass
+            return
+
         if self.is_audio:
             self.view.audio_quality = self.values[0]
         else:
             self.view.video_quality = self.values[0]
         await interaction.response.defer()
 
+
 class ConfirmButton(discord.ui.Button):
     def __init__(self, row: int):
         super().__init__(label="Confirmar e Processar", style=discord.ButtonStyle.success, row=row)
 
     async def callback(self, interaction: discord.Interaction):
+        if getattr(self.view, 'confirmed', False):
+            try: await interaction.response.defer()
+            except: pass
+            return
+
         self.view.confirmed = True
         for child in self.view.children:
             child.disabled = True
-        await interaction.response.edit_message(content=None, embed=discord.Embed(title="⚙️ Convertendo...", description="**Processando conversão...**", color=0xFFA500), view=self.view)
+            
+        try:
+            await interaction.response.edit_message(content=None, embed=discord.Embed(title="⚙️ Convertendo...", description="**Processando conversão...**", color=0xFFA500), view=self.view)
+        except Exception:
+            pass
+            
         self.view.stop()
 
 class MediaFormatView(discord.ui.View):
