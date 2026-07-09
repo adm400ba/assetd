@@ -1034,7 +1034,7 @@ async def asset(interaction: discord.Interaction, asset_id: str):
             done_direct.add_field(name="📁 Arquivo processado", value="**1 arquivo processado.**", inline=False)
 
             try:
-                await interaction.edit_original_response(content=None, embed=done_direct, attachments=[discord.File(file_path)], view=None)
+                await interaction.edit_original_response(content=None, embed=done_direct, file=discord.File(file_path), view=None)
             except discord.errors.HTTPException:
                 try: await interaction.delete_original_response()
                 except Exception: pass
@@ -1069,7 +1069,7 @@ async def assetbatch(interaction: discord.Interaction, asset_ids: str):
                 errors.append(f"{x}: Ignorado por não ser um número")
             
     if len(ids_list) > 20:
-        await interaction.response.send_message(embed=discord.Embed(title="❌️ Limite Excedido", description="Por favor, limite a 20 assets por lote para evitar sobrecarga.", color=0xFF0000))
+        await interaction.response.send_message(embed=discord.Embed(title="❌️ Limite Excedido", description="Por favor, limite a 20 assets por lote para avoid sobrecarga.", color=0xFF0000))
         return
 
     state = {"current": 0, "total": len(ids_list), "running": True, "in_flight": False}
@@ -1239,7 +1239,8 @@ async def assetbatch(interaction: discord.Interaction, asset_ids: str):
                 try: await interaction.channel.send(content=None, embed=final_embed)
                 except Exception: pass
         else:
-            try: await interaction.edit_original_response(content=None, embed=final_embed, attachments=[discord.File(zip_filename)])
+            try: 
+                await interaction.edit_original_response(content=None, embed=final_embed, file=discord.File(zip_filename), view=None)
             except discord.errors.HTTPException:
                 try: await interaction.delete_original_response()
                 except Exception: pass
