@@ -267,7 +267,7 @@ async def convert_media(input_path: str, format: str, quality: str) -> str:
 
     cmd = ['ffmpeg', '-y', '-nostdin', '-i', input_name]
 
-    is_audio = format in ['.mp3', '.wav', '.ogg', '.flac']
+    is_audio = format in ['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac', '.wma']
     if is_audio:
         if format == '.mp3':
             cmd.extend(['-c:a', 'libmp3lame'])
@@ -277,6 +277,12 @@ async def convert_media(input_path: str, format: str, quality: str) -> str:
             cmd.extend(['-c:a', 'libvorbis'])
         elif format == '.flac':
             cmd.extend(['-c:a', 'flac'])
+        elif format == '.m4a':
+            cmd.extend(['-c:a', 'aac'])
+        elif format == '.aac':
+            cmd.extend(['-c:a', 'aac'])
+        elif format == '.wma':
+            cmd.extend(['-c:a', 'wmav2'])
 
         if format not in ['.wav', '.flac']:
             if quality == 'high':
@@ -854,37 +860,49 @@ class ConfirmButton(discord.ui.Button):
         self.view.stop()
 
 class MediaFormatView(discord.ui.View):
-    def __init__(self, has_audio: bool, has_video: bool):
+    def __init__(self, has_audio: bool, has_video: bool, orig_audio_ext: str = None, orig_video_ext: str = None):
         super().__init__(timeout=60)
-        self.audio_fmt = '.ogg'
-        self.video_fmt = '.webm'
+        self.audio_fmt = orig_audio_ext or '.ogg'
+        self.video_fmt = orig_video_ext or '.webm'
         self.audio_quality = 'original'
         self.video_quality = 'original'
         self.confirmed = False
         
-        row_idx = 0
-        if has_audio:
-            self.add_item(FormatButton("MP3", ".mp3", row=row_idx, is_audio=True))
-            self.add_item(FormatButton("WAV", ".wav", row=row_idx, is_audio=True))
-            self.add_item(FormatButton("FLAC", ".flac", row=row_idx, is_audio=True))
-            self.add_item(FormatButton("OGG", ".ogg", row=row_idx, is_audio=True, style=discord.ButtonStyle.primary))
-            row_idx += 1
-            
-        if has_video:
-            self.add_item(FormatButton("MP4", ".mp4", row=row_idx, is_audio=False))
-            self.add_item(FormatButton("MOV", ".mov", row=row_idx, is_audio=False))
-            self.add_item(FormatButton("WEBM", ".webm", row=row_idx, is_audio=False, style=discord.ButtonStyle.primary))
-            row_idx += 1
+        btn_row = 0
+        btn_col = 0
+        
+        def add_btn(item):
+            nonlocal btn_row, btn_col
+            if btn_col >= 5:
+                btn_row += 1
+                btn_col = 0
+            item.row = btn_row
+            self.add_item(item)
+            btn_col += 1
 
         if has_audio:
-            self.add_item(QualitySelect(is_audio=True, row=row_idx))
-            row_idx += 1
-
+            for label, ext in [("MP3", ".mp3"), ("WAV", ".wav"), ("FLAC", ".flac"), ("OGG", ".ogg"), ("M4A", ".m4a"), ("AAC", ".aac"), ("WMA", ".wma")]:
+                bl = f"{label} (original)" if ext == orig_audio_ext else label
+                st = discord.ButtonStyle.primary if ext == self.audio_fmt else discord.ButtonStyle.secondary
+                add_btn(FormatButton(bl, ext, row=0, is_audio=True, style=st))
+        
         if has_video:
-            self.add_item(QualitySelect(is_audio=False, row=row_idx))
-            row_idx += 1
+            for label, ext in [("MP4", ".mp4"), ("MOV", ".mov"), ("WEBM", ".webm")]:
+                bl = f"{label} (original)" if ext == orig_video_ext else label
+                st = discord.ButtonStyle.primary if ext == self.video_fmt else discord.ButtonStyle.secondary
+                add_btn(FormatButton(bl, ext, row=0, is_audio=False, style=st))
+
+        next_row = btn_row + 1
+        
+        if has_audio:
+            self.add_item(QualitySelect(is_audio=True, row=next_row))
+            next_row += 1
             
-        self.add_item(ConfirmButton(row=row_idx))
+        if has_video:
+            self.add_item(QualitySelect(is_audio=False, row=next_row))
+            next_row += 1
+            
+        self.add_item(ConfirmButton(row=next_row))
 
 class RobloxAssetBot(discord.Client):
     def __init__(self):
@@ -954,8 +972,12 @@ async def asset(interaction: discord.Interaction, asset_id: str):
         has_a = file_path.endswith(AUDIO_EXTS)
         has_v = file_path.endswith('.webm')
         
+        orig_ext = os.path.splitext(file_path)[1].lower()
+        orig_a = orig_ext if has_a else None
+        orig_v = orig_ext if has_v else None
+        
         if has_a or has_v:
-            view = MediaFormatView(has_a, has_v)
+            view = MediaFormatView(has_a, has_v, orig_a, orig_v)
             embed_view = discord.Embed(title="⚙️ Formatos e Qualidades", description="Mídia detectada! Selecione os formatos e qualidades:", color=0x74D8FA)
             
             try:
@@ -1120,9 +1142,12 @@ async def assetbatch(interaction: discord.Interaction, asset_ids: str):
     has_a = any(f.endswith(AUDIO_EXTS) for f in downloaded_files)
     has_v = any(f.endswith('.webm') for f in downloaded_files)
 
+    orig_a = next((os.path.splitext(f)[1].lower() for f in downloaded_files if f.endswith(AUDIO_EXTS)), None)
+    orig_v = next((os.path.splitext(f)[1].lower() for f in downloaded_files if f.endswith('.webm')), None)
+
     try:
         if has_a or has_v:
-            view = MediaFormatView(has_a, has_v)
+            view = MediaFormatView(has_a, has_v, orig_a, orig_v)
             embed_view = discord.Embed(title="⚙️ Formatos e Qualidades", description="Mídias detectadas no lote! Selecione os formatos e qualidades:", color=0x74D8FA)
             
             try:
