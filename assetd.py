@@ -54,6 +54,7 @@ def load_fallback_games():
 FALLBACK_GAMES = load_fallback_games()
 
 NO_BINARY_TYPES = [21, 34]
+AUDIO_EXTS = ('.mp3', '.ogg', '.wav', '.flac', '.m4a', '.aac', '.wma')
 
 async def upload_gofile(file_path: str):
     try:
@@ -156,26 +157,26 @@ async def upload_gofile(file_path: str):
         return f"Erro crítico na rotina de upload: {str(e)}"
 
 def detect_file_extension(content: bytes, content_type: str, fallback_ext: str) -> str:
-    if content.startswith(b'#EXTM3U'):
-        return '.m3u8'
-    if content.startswith(b'\x89PNG\r\n\x1a\n'):
-        return '.png'
-    if content.startswith(b'OggS'):
-        return '.ogg'
-    if content.startswith(b'\x1aE\xdf\xa3'):
-        return '.webm'
-    if content.startswith(b'<roblox!'):
-        return '.rbxm'
-    if content.startswith(b'<roblox'):
-        return '.rbxmx'
-    if content.startswith(b'version '):
-        return '.mesh'
-    if content.startswith(b'{"') or content.startswith(b'['):
-        return '.json'
+    if content.startswith(b'ID3') or content.startswith(b'\xff\xfb') or content.startswith(b'\xff\xf3'): return '.mp3'
+    if content.startswith(b'OggS'): return '.ogg'
+    if content.startswith(b'RIFF'): return '.wav'
+    if content.startswith(b'fLaC'): return '.flac'
+    if content.startswith(b'#EXTM3U'): return '.m3u8'
+    if content.startswith(b'\x89PNG\r\n\x1a\n'): return '.png'
+    if content.startswith(b'\x1aE\xdf\xa3'): return '.webm'
+    if content.startswith(b'<roblox!'): return '.rbxm'
+    if content.startswith(b'<roblox'): return '.rbxmx'
+    if content.startswith(b'version '): return '.mesh'
+    if content.startswith(b'{"') or content.startswith(b'['): return '.json'
     
     ctype = content_type.lower()
-    if 'image/png' in ctype: return '.png'
+    if 'audio/mpeg' in ctype or 'audio/mp3' in ctype: return '.mp3'
     if 'audio/ogg' in ctype: return '.ogg'
+    if 'audio/wav' in ctype or 'audio/x-wav' in ctype: return '.wav'
+    if 'audio/flac' in ctype or 'audio/x-flac' in ctype: return '.flac'
+    if 'audio/mp4' in ctype or 'audio/m4a' in ctype: return '.m4a'
+    if 'audio/aac' in ctype: return '.aac'
+    if 'image/png' in ctype: return '.png'
     if 'video/webm' in ctype: return '.webm'
     if 'application/xml' in ctype: return '.rbxmx'
     if 'application/json' in ctype: return '.json'
@@ -950,7 +951,7 @@ async def asset(interaction: discord.Interaction, asset_id: str):
         pass
 
     if file_path and os.path.exists(file_path):
-        has_a = file_path.endswith('.ogg')
+        has_a = file_path.endswith(AUDIO_EXTS)
         has_v = file_path.endswith('.webm')
         
         if has_a or has_v:
@@ -1116,7 +1117,7 @@ async def assetbatch(interaction: discord.Interaction, asset_ids: str):
             except Exception: pass
         return
 
-    has_a = any(f.endswith('.ogg') for f in downloaded_files)
+    has_a = any(f.endswith(AUDIO_EXTS) for f in downloaded_files)
     has_v = any(f.endswith('.webm') for f in downloaded_files)
 
     try:
@@ -1137,7 +1138,7 @@ async def assetbatch(interaction: discord.Interaction, asset_ids: str):
             if view.confirmed:
                 new_files = []
                 for f in downloaded_files:
-                    if f.endswith('.ogg'): f = await convert_media(f, view.audio_fmt, view.audio_quality)
+                    if f.endswith(AUDIO_EXTS): f = await convert_media(f, view.audio_fmt, view.audio_quality)
                     elif f.endswith('.webm'): f = await convert_media(f, view.video_fmt, view.video_quality)
                     new_files.append(f)
                 downloaded_files = new_files
